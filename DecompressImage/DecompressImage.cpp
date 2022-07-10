@@ -51,22 +51,22 @@ void readSL(const unsigned char *sl, size_t pos, unsigned char *outBuf, size_t s
 		memcpy(outBuf, sl + pos, size);
 }
 
-void readLZRLE(const unsigned char *sl, size_t slPos, unsigned char *outBuf, size_t codedOffset, size_t length)
+void readLZ(const unsigned char *sl, size_t slPos, unsigned char *outBuf, size_t codedOffset, size_t length)
 {
 	size_t actualOffset = codedOffset + 1;
 
 	const size_t readPos = (slPos + kWindowSize - actualOffset) % kWindowSize;
 
-	if (actualOffset >= length)
+	// Repeating sequence
+	while (actualOffset < length)
 	{
-		// Copy
-		readSL(sl, readPos, outBuf, length);
+		readSL(sl, readPos, outBuf, actualOffset);
+		outBuf += actualOffset;
+		length -= actualOffset;
 	}
-	else
-	{
-		// RLE
-		memset(outBuf, sl[readPos], length);
-	}
+
+	// Copy
+	readSL(sl, readPos, outBuf, length);
 }
 
 int decompress(FILE *inF, FILE *outF, size_t decompressSize)
@@ -111,7 +111,7 @@ int decompress(FILE *inF, FILE *outF, size_t decompressSize)
 			chunkSize = (codeBytes[0] & 0x3f) + 4;
 			size_t offset = (codeBytes[1] << 8) + codeBytes[2];
 
-			readLZRLE(sl, slPos, lzBytes, offset, chunkSize);
+			readLZ(sl, slPos, lzBytes, offset, chunkSize);
 		}
 		else
 		{
@@ -127,7 +127,7 @@ int decompress(FILE *inF, FILE *outF, size_t decompressSize)
 			chunkSize = ((codeBytes[0] & 0x3c) >> 2) + 3;
 			size_t offset = ((codeBytes[0] & 0x3) << 8) + codeBytes[1];
 
-			readLZRLE(sl, slPos, lzBytes, offset, chunkSize);
+			readLZ(sl, slPos, lzBytes, offset, chunkSize);
 		}
 
 		if (fwriteAll(lzBytes, chunkSize, outF))

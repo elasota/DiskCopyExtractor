@@ -37,19 +37,19 @@ def read_sl(sl, sl_pos, out_buf, out_buf_pos, size):
 	else:
 		block_copy(out_buf, out_buf_pos, sl, sl_pos, size)
 
-def read_lzrle(sl, sl_pos, out_buf, out_buf_pos, coded_offset, length):
+def read_lz(sl, sl_pos, out_buf, out_buf_pos, coded_offset, length):
 	actual_offset = coded_offset + 1
 
-	read_pos = (sl_pos + window_size - actual_offset) % window_size
+	read_pos = (sl_pos + window_size - actual_offset) % window_size;
 
-	if actual_offset >= length:
-		# Copy span (LZ)
-		read_sl(sl, read_pos, out_buf, out_buf_pos, length)
-	else:
-		# Copy one byte (RLE)
-		repeat_byte = sl[read_pos]
-		for i in range(out_buf_pos, out_buf_pos + length):
-			out_buf[i] = repeat_byte
+	while actual_offset < length:
+		# Repeating sequence
+		read_sl(sl, read_pos, out_buf, out_buf_pos, actual_offset)
+		out_buf_pos += actual_offset
+		length -= actual_offset
+
+	# Copy
+	read_sl(sl, read_pos, out_buf, out_buf_pos, length)
 
 def decompress(in_f, out_f, compressed_data_size):
 	sl = bytearray(window_size)
@@ -85,7 +85,7 @@ def decompress(in_f, out_f, compressed_data_size):
 			chunk_size = (code_byte_0 & 0x3f) + 4
 			coded_offset = (code_bytes_12[0] << 8) + code_bytes_12[1]
 
-			read_lzrle(sl, sl_pos, lz_bytes, 0, coded_offset, chunk_size)
+			read_lz(sl, sl_pos, lz_bytes, 0, coded_offset, chunk_size)
 			output_data = lz_bytes
 		else:
 			# Small offset
@@ -99,7 +99,7 @@ def decompress(in_f, out_f, compressed_data_size):
 			chunk_size = ((code_byte_0 & 0x3c) >> 2) + 3
 			coded_offset = ((code_byte_0 & 0x3) << 8) + code_byte_1
 
-			read_lzrle(sl, sl_pos, lz_bytes, 0, coded_offset, chunk_size)
+			read_lz(sl, sl_pos, lz_bytes, 0, coded_offset, chunk_size)
 			output_data = lz_bytes
 
 		out_f.write(output_data[0:chunk_size])
